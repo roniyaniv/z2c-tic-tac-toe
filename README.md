@@ -26,7 +26,7 @@ start a new game.
 
 ## Run Locally
 
-Requires Node.js 20 or later.
+Requires Node.js 24 or later.
 
 ```sh
 git clone <repository-url>
