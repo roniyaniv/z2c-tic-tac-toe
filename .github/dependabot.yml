@@ -1,0 +1,12 @@
+# Dependabot opens pull requests when dependencies have updates or
+# security fixes. Checked weekly.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
