@@ -1,0 +1,259 @@
+/* style.css
+   Styles for the tic-tac-toe page (index.html).
+
+   Hooks set by client.js:
+   - Cell with a mark: text "X"/"O" AND data-symbol="X"/"O"
+   - Winning cells: class "win"; the board gets data-winner="X"/"O"
+   - Status: data-turn="X"/"O" while a game is on; class "my-turn" on your turn
+   - Find Game button: class "searching" (and disabled) while looking for a game */
+
+/* ---- Colors and sizes (change the theme here) ---- */
+:root {
+  --bg: #fdf6ec;           /* warm cream page background */
+  --ink: #3a3f58;          /* main text */
+  --muted: #7a7f99;        /* secondary text */
+  --grid-line: #d9cfe8;    /* lines between cells */
+  --cell: #ffffff;
+  --cell-hover: #fff3d6;   /* soft yellow on hover */
+  --x: #2f6fde;            /* blue X */
+  --o: #e5484d;            /* red O */
+  --x-tint: #d3e2ff;       /* winning-cell background when X wins */
+  --o-tint: #ffd6d7;       /* winning-cell background when O wins */
+  --accent: #ff8a3d;       /* Find Game / Play Again buttons */
+  --accent-dark: #e86f1f;
+
+  /* 100px cells on normal screens; shrink on narrow phones so the whole
+     board (3 cells + 2 gaps + page padding) always fits the width. */
+  --cell-size: min(100px, 27vw);
+  --gap: 6px;
+}
+
+/* ---- Page layout: everything centered ---- */
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: 'Fredoka', system-ui, sans-serif;
+}
+
+main {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.25rem;
+  padding: 1rem;
+  text-align: center;
+}
+
+h1 {
+  margin: 0;
+  font-size: clamp(2rem, 9vw, 2.75rem);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+/* Buttons don't inherit fonts by default. */
+button {
+  font-family: inherit;
+}
+
+/* ---- Status line and turn indicator ---- */
+#status {
+  margin: 0;
+  min-height: 1.5em;   /* keeps layout steady when the text changes */
+  font-size: clamp(1rem, 4.5vw, 1.2rem);
+  color: var(--muted);
+  transition: color 0.3s;
+}
+
+/* During a game the status takes the color of whoever's turn it is. */
+#status[data-turn="X"] {
+  color: var(--x);
+  font-weight: 600;
+}
+
+#status[data-turn="O"] {
+  color: var(--o);
+  font-weight: 600;
+}
+
+/* On your own turn it also gently "breathes" to draw attention. */
+#status.my-turn {
+  animation: breathe 1.6s ease-in-out infinite;
+}
+
+@keyframes breathe {
+  0%, 100% { transform: scale(1);    opacity: 1; }
+  50%      { transform: scale(1.06); opacity: 0.8; }
+}
+
+/* ---- Find Game / Play Again: large, bright, rounded ---- */
+#find-game,
+#play-again {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6em;
+  padding: 0.8rem 2.2rem;
+  border: none;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  font-size: clamp(1.1rem, 5vw, 1.3rem);
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 4px 0 var(--accent-dark);
+  transition: transform 0.1s, box-shadow 0.1s, opacity 0.2s;
+}
+
+#find-game:not(:disabled):hover,
+#play-again:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 0 var(--accent-dark);
+}
+
+/* Pressed: button sinks onto its shadow. */
+#find-game:not(:disabled):active,
+#play-again:active {
+  transform: translateY(2px);
+  box-shadow: 0 2px 0 var(--accent-dark);
+}
+
+#find-game:disabled {
+  opacity: 0.8;
+  cursor: default;
+}
+
+/* Spinner inside Find Game, shown only while searching. */
+.spinner {
+  display: none;
+  width: 1em;
+  height: 1em;
+  border: 3px solid rgba(255, 255, 255, 0.4);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+#find-game.searching .spinner {
+  display: inline-block;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Without this, a display rule above could override the hidden attribute. */
+[hidden] {
+  display: none !important;
+}
+
+/* ---- Board: 3x3 grid ----
+   The gap shows the board's background through, drawing lines only
+   between cells (like a hand-drawn # grid), not around the outside. */
+#board {
+  display: grid;
+  grid-template-columns: repeat(3, var(--cell-size));
+  grid-template-rows: repeat(3, var(--cell-size));
+  gap: var(--gap);
+  background: var(--grid-line);
+}
+
+.cell {
+  border: none;
+  background: var(--cell);
+  font-size: calc(var(--cell-size) * 0.56); /* mark scales with the cell */
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.3s;
+  touch-action: manipulation;          /* no double-tap zoom on phones */
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Hover only on empty, playable cells. */
+.cell:not([data-symbol]):not(:disabled):hover {
+  background: var(--cell-hover);
+}
+
+.cell:disabled {
+  cursor: default;
+}
+
+/* Visible focus ring for keyboard players. */
+.cell:focus-visible,
+#find-game:focus-visible,
+#play-again:focus-visible {
+  outline: 3px solid var(--x);
+  outline-offset: 2px;
+}
+
+/* ---- Marks ----
+   Colors are set explicitly so they stay bright on disabled cells
+   (browsers grey out disabled button text by default). */
+.cell[data-symbol="X"] {
+  color: var(--x);
+}
+
+.cell[data-symbol="O"] {
+  color: var(--o);
+}
+
+/* Mark appears: fades in while growing past full size and settling back.
+   Runs when data-symbol is added to a cell. */
+.cell[data-symbol] {
+  animation: pop 0.35s ease-out;
+}
+
+@keyframes pop {
+  0%   { transform: scale(0.4);  opacity: 0; }
+  60%  { transform: scale(1.12); opacity: 1; }
+  100% { transform: scale(1);    opacity: 1; }
+}
+
+/* ---- Winning line ----
+   Background tinted in the winner's color, plus a short pulse.
+   Declared after the pop rule so its animation takes over. */
+.cell.win {
+  animation: pulse 0.5s ease-in-out 2;
+}
+
+#board[data-winner="X"] .cell.win {
+  background: var(--x-tint);
+}
+
+#board[data-winner="O"] .cell.win {
+  background: var(--o-tint);
+}
+
+@keyframes pulse {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(1.08); }
+}
+
+/* ---- Respect the system "reduce motion" setting ----
+   No movement; the "Searching..." label still says what's happening. */
+@media (prefers-reduced-motion: reduce) {
+  .cell[data-symbol],
+  .cell.win,
+  #status.my-turn {
+    animation: none;
+  }
+  .spinner,
+  #find-game.searching .spinner {
+    display: none;
+  }
+  #find-game,
+  #play-again,
+  .cell,
+  #status {
+    transition: none;
+  }
+}

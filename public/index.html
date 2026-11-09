@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tic Tac Toe</title>
+  <!-- Fredoka font from Google Fonts. If offline, style.css falls back
+       to the system font. -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600&display=swap">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main>
+    <h1>Tic Tac Toe</h1>
+
+    <!-- While searching, client.js disables this button, adds class
+         "searching" (shows the spinner) and changes the label text. -->
+    <button id="find-game" type="button">
+      <span class="spinner" aria-hidden="true"></span>
+      <span class="label">Find Game</span>
+    </button>
+
+    <!-- aria-live makes screen readers announce status changes. -->
+    <p id="status" aria-live="polite">Click Find Game to start</p>
+
+    <!-- Cells are numbered 0-8, left to right, top to bottom, matching the
+         server. data-index is the value client.js sends with 'make-move'.
+         Cells start disabled until a game begins. -->
+    <div id="board" role="group" aria-label="Game board">
+      <button class="cell" type="button" data-index="0" aria-label="Cell 1" disabled></button>
+      <button class="cell" type="button" data-index="1" aria-label="Cell 2" disabled></button>
+      <button class="cell" type="button" data-index="2" aria-label="Cell 3" disabled></button>
+      <button class="cell" type="button" data-index="3" aria-label="Cell 4" disabled></button>
+      <button class="cell" type="button" data-index="4" aria-label="Cell 5" disabled></button>
+      <button class="cell" type="button" data-index="5" aria-label="Cell 6" disabled></button>
+      <button class="cell" type="button" data-index="6" aria-label="Cell 7" disabled></button>
+      <button class="cell" type="button" data-index="7" aria-label="Cell 8" disabled></button>
+      <button class="cell" type="button" data-index="8" aria-label="Cell 9" disabled></button>
+    </div>
+
+    <!-- Shown by client.js after 'game-over' or 'opponent-left'. -->
+    <button id="play-again" type="button" hidden>Play Again</button>
+  </main>
+
+  <!-- Socket.io serves its client library automatically at this path.
+       It must load before client.js, which calls io(). -->
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="client.js"></script>
+</body>
+</html>
