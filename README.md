@@ -1,142 +1,91 @@
-# Tic-Tac-Toe
+# Tic Tac Toe
 
-A real-time tic-tac-toe game server built with Node.js, Express and Socket.io.
+Real-time two-player tic-tac-toe in the browser, matched over WebSockets.
 
-## Requirements
+## How to Play
 
-- Node.js 18 or later
+1. Click **Find Game**. You wait until another player does the same.
+2. When paired, each player is randomly assigned **X** or **O**. X moves first.
+3. Take turns clicking empty cells. The status line shows whose turn it is
+   (blue for X, red for O).
+4. Three in a row (horizontal, vertical, or diagonal) wins and is highlighted.
+   A full board with no winner is a draw.
+5. Click **Play Again** to be matched with the next available player.
 
-## Install
+If your opponent closes the page or loses their connection, you are told
+and can start a new game.
+
+## Tech Stack
+
+- **Node.js** — server runtime
+- **Express** — serves the static page
+- **Socket.io** — real-time communication over WebSockets
+- **Vanilla HTML/CSS/JS** — browser client, no framework or build step
+
+## Run Locally
+
+Requires Node.js 18 or later.
 
 ```sh
+git clone <repository-url>
+cd tic-tac-toe
 npm install
-```
-
-## Run
-
-```sh
-npm start
-```
-
-The server listens on port 3000 by default. To use a different port, set `PORT`:
-
-```sh
-PORT=8080 npm start
+node server.js        # or: npm start
 ```
 
 Open `http://localhost:3000` in two browser windows and click Find Game in
-each to play against yourself. The server terminal logs each connect and
-disconnect:
+each to play against yourself.
+
+- Different port: `PORT=8080 node server.js`
+- Run the tests: `npm test` (Node's built-in test runner, no extra packages)
+
+## How It Works
+
+The server holds all game state and is the single source of truth; the
+browser only displays it and sends the player's clicks.
 
 ```
-Player connected: <socket id>
-Player disconnected: <socket id>
+Browser (client.js)  <── WebSocket (Socket.io) ──>  server.js
+                                                      ├─ matchmaking.js  queue, pairing, rooms
+                                                      ├─ moves.js        turn check, apply move
+                                                      └─ game.js         board, win/draw rules
 ```
 
-If the port is already taken, the server exits with
-`Port 3000 is already in use...`; stop the other server or set `PORT`.
+1. The page opens a persistent WebSocket connection to the server.
+2. `find-game` puts the player in a queue. When two are waiting, the server
+   creates a game, puts both in a private Socket.io room, and sends each
+   `game-start` with their symbol.
+3. A click sends `make-move`. The server checks it is that player's game and
+   turn, applies it, and broadcasts the new board to both players at once.
+   Invalid moves are refused with a reason.
+4. After a win or draw the server sends `game-over` and deletes the game.
+   Disconnects are detected (within ~15 s for a dropped network) and the
+   opponent is notified.
 
-### Disconnect detection
+### Events
 
-Closing a tab is detected immediately. A dropped network (Wi-Fi lost, laptop
-asleep) is detected by Socket.io's heartbeat within about 15 seconds
-(`pingInterval: 10000`, `pingTimeout: 5000` in `server.js`); the opponent
-then receives `opponent-left`.
+| Direction        | Event           | Payload                                  |
+|------------------|-----------------|------------------------------------------|
+| client → server  | `find-game`     | none                                     |
+| client → server  | `make-move`     | `{ index }` (cell 0-8)                   |
+| server → client  | `waiting`       | none                                     |
+| server → client  | `game-start`    | `{ symbol, roomId }`                     |
+| server → client  | `move-made`     | `{ index, symbol, board }`               |
+| server → client  | `move-rejected` | `{ reason }`                             |
+| server → client  | `game-over`     | `{ winner, winningLine, isDraw, board }` |
+| server → client  | `opponent-left` | none                                     |
 
-## Test
+### Files
 
-```sh
-npm test
-```
+| Path                  | Purpose                                            |
+|-----------------------|----------------------------------------------------|
+| `server.js`           | HTTP server, static files, Socket.io event wiring  |
+| `matchmaking.js`      | Waiting queue, pairing, room tracking, disconnects |
+| `moves.js`            | Turn check, apply move, broadcast result           |
+| `game.js`             | `TicTacToeGame`: board, turns, win/draw logic      |
+| `*.test.js`           | Unit tests; `test-utils/fakes.js` has fake sockets |
+| `public/index.html`   | Game page                                          |
+| `public/style.css`    | Styles, animations, mobile layout                  |
+| `public/client.js`    | Browser logic: buttons, clicks, server events      |
 
-Runs all `*.test.js` files with Node's built-in test runner
-(no extra packages needed).
-
-## Game logic (`game.js`)
-
-`TicTacToeGame` holds the state of one game. It has no networking code.
-
-```js
-const TicTacToeGame = require('./game');
-const game = new TicTacToeGame();
-
-game.makeMove(4);
-// { valid: true, symbol: 'X', winner: null, winningLine: null, isDraw: false, board: [...] }
-
-game.makeMove(4);
-// { valid: false, reason: 'Cell occupied', symbol: 'O', ... }
-
-game.getState();
-// { board: [...], currentTurn: 'O' }
-```
-
-- Cells are numbered 0-8, left to right, top to bottom.
-- X always moves first; each valid move places the current player's symbol
-  and passes the turn.
-- The class does not know which client is which player. The server must
-  only call `makeMove` on behalf of the player whose turn it is.
-- A rejected move leaves the game unchanged and returns one of these reasons:
-  `Game is over`, `Invalid cell`, `Cell occupied`.
-
-## Matchmaking (`matchmaking.js`)
-
-Pairs players into games.
-
-| Export                         | What it does                                                        |
-|--------------------------------|---------------------------------------------------------------------|
-| `addToQueue(socket, io)`       | Pairs with a waiting player, or queues the socket                   |
-| `removeFromQueue(socket)`      | Removes a socket from the waiting queue                             |
-| `handleDisconnect(socket, io)` | Removes from queue, or ends the game and notifies the opponent      |
-| `endGame(roomId)`              | Deletes a game; both players leave the room and can queue again     |
-| `activeGames`                  | Map: `roomId -> { game, players: { X: socket, O: socket } }`        |
-| `socketRooms`                  | Map: `socketId -> roomId`                                           |
-
-A socket that is already waiting or already in a game is ignored by
-`addToQueue`. After `opponent-left` or `game-over`, the client decides
-whether to send `find-game` again.
-
-## Moves (`moves.js`)
-
-`handleMove(socket, index, io)` checks the sender is in a game and that it
-is their turn, applies the move with `game.makeMove`, and broadcasts the
-result. A finished game is deleted with `endGame`.
-
-## Socket.io events
-
-Client to server:
-
-| Event       | Payload     | Effect                                   |
-|-------------|-------------|------------------------------------------|
-| `find-game` | none        | Join the queue, or start a game          |
-| `make-move` | `{ index }` | Play cell `index` (0-8)                  |
-
-Server to client:
-
-| Event           | Sent to      | Payload                     | When                                         |
-|-----------------|--------------|-----------------------------|----------------------------------------------|
-| `waiting`       | the player   | none                        | Queued, no opponent yet                      |
-| `game-start`    | each player  | `{ symbol, roomId }`        | Paired; `symbol` is `'X'` or `'O'` (random)  |
-| `move-made`     | both players | `{ index, symbol, board }`  | A valid move was played                      |
-| `move-rejected` | the player   | `{ reason }`                | Move refused (see reasons below)             |
-| `game-over`     | both players | `{ winner, winningLine, isDraw, board }` | Sent right after the final `move-made`; `winningLine` is e.g. `[0, 4, 8]`, or `null` on a draw |
-| `opponent-left` | the player   | none                        | Opponent disconnected; the game is discarded |
-
-`move-rejected` reasons: `Not in a game`, `Not your turn`, `Invalid cell`,
-`Cell occupied`.
-
-## Project layout
-
-| Path               | Purpose                                              |
-|--------------------|------------------------------------------------------|
-| `server.js`        | Express static server; wires Socket.io events to the modules |
-| `game.js`          | `TicTacToeGame` class: board, turns, win/draw logic  |
-| `game.test.js`     | Unit tests for `game.js`                             |
-| `matchmaking.js`   | Waiting queue, pairing, room tracking, disconnects   |
-| `matchmaking.test.js` | Unit tests for `matchmaking.js` (fake sockets)    |
-| `moves.js`         | `handleMove`: turn check, apply move, broadcast      |
-| `moves.test.js`    | Unit tests for `moves.js`                            |
-| `test-utils/fakes.js` | Fake socket and io objects shared by the tests    |
-| `public/`          | Client files served to the browser                   |
-| `public/index.html`| Game page: Find Game button, status, 3x3 board, Play Again |
-| `public/style.css` | Page styles; marks are styled via `data-symbol="X"/"O"` on cells |
-| `public/client.js` | Browser game logic: buttons, board clicks, server events |
+Each source file has inline comments with further detail.
