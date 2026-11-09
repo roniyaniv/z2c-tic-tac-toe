@@ -2,7 +2,7 @@
 // Handles a 'make-move' request from a player: checks it is that player's
 // turn, applies the move, and tells both players what happened.
 
-const { activeGames, socketRooms, endGame } = require('./matchmaking');
+const { activeGames, socketRooms, endGame, startTurnTimer } = require('./matchmaking');
 
 // `index` is the cell (0-8) the player clicked. It comes from the client,
 // so it is untrusted; game.makeMove validates it.
@@ -10,8 +10,10 @@ const { activeGames, socketRooms, endGame } = require('./matchmaking');
 // Events sent:
 //   'move-rejected' { reason }               -> only the sender
 //   'move-made'     { index, symbol, board } -> the whole room
-//   'game-over'     { winner, winningLine, isDraw, board }
+//   'game-over'     { winner, winningLine, isDraw, board, timedOut: false }
 //                                            -> the whole room, after move-made
+// (A forfeit on timeout sends 'game-over' with timedOut: true; see
+// startTurnTimer in matchmaking.js.)
 function handleMove(socket, index, io) {
   const roomId = socketRooms.get(socket.id);
   const record = roomId && activeGames.get(roomId);
@@ -51,10 +53,14 @@ function handleMove(socket, index, io) {
       winningLine: result.winningLine,
       isDraw: result.isDraw,
       board: result.board,
+      timedOut: false,
     });
     // Free the room so finished games don't linger in memory and both
-    // players can send 'find-game' again.
+    // players can send 'find-game' again. This also stops the turn timer.
     endGame(roomId);
+  } else {
+    // Next player's turn: give them a fresh countdown.
+    startTurnTimer(roomId, io);
   }
 }
 

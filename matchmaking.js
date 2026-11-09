@@ -6,18 +6,23 @@
 const crypto = require('crypto');
 const TicTacToeGame = require('./game');
 
+// A player who doesn't move within this time forfeits the game, so an idle
+// opponent can't leave the other player stuck forever.
+const TURN_TIME_MS = 60_000;
+
 // Sockets waiting for an opponent, oldest first.
 const waitingQueue = [];
 
-// roomId -> { game: TicTacToeGame, players: { X: socket, O: socket } }
+// roomId -> { game: TicTacToeGame, players: { X: socket, O: socket },
+//             turnTimer: timeout handle for the current turn }
 const activeGames = new Map();
 
 // socketId -> roomId, for every socket currently in a game.
 const socketRooms = new Map();
 
 // Puts `socket` into a game if someone is waiting, otherwise queues it.
-// `io` is accepted for a consistent API with handleDisconnect; all events
-// here go to individual sockets because each player gets a different symbol.
+// 'game-start' goes to each socket individually because each player gets a
+// different symbol; `io` is used by the turn timer to broadcast a forfeit.
 function addToQueue(socket, io) {
   // Guards: a socket already waiting or already playing must not be
   // queued again (e.g. a double click), or it could be paired with itself
@@ -48,6 +53,33 @@ function addToQueue(socket, io) {
   oSocket.join(roomId);
   xSocket.emit('game-start', { symbol: 'X', roomId });
   oSocket.emit('game-start', { symbol: 'O', roomId });
+  startTurnTimer(roomId, io);
+}
+
+// (Re)starts the countdown for whoever's turn it is. moves.js calls this
+// after every valid move that doesn't end the game. When it expires, the
+// player to move forfeits: both players get 'game-over' with timedOut: true.
+function startTurnTimer(roomId, io) {
+  const record = activeGames.get(roomId);
+  if (!record) {
+    return;
+  }
+  clearTimeout(record.turnTimer);
+  record.turnTimer = setTimeout(() => {
+    const { game } = record;
+    const { board, currentTurn } = game.getState();
+    io.to(roomId).emit('game-over', {
+      winner: currentTurn === 'X' ? 'O' : 'X',
+      winningLine: null,
+      isDraw: false,
+      board,
+      timedOut: true,
+    });
+    endGame(roomId);
+  }, TURN_TIME_MS);
+  // unref: a pending timer alone shouldn't keep Node running (matters for
+  // tests; the HTTP server keeps the real process alive anyway).
+  record.turnTimer.unref?.();
 }
 
 // Removes `socket` from the waiting queue, if it is there.
@@ -92,6 +124,7 @@ function endGame(roomId) {
   if (!record) {
     return;
   }
+  clearTimeout(record.turnTimer);
   for (const player of Object.values(record.players)) {
     player.leave(roomId);
     socketRooms.delete(player.id);
@@ -103,6 +136,9 @@ function endGame(roomId) {
 // exported references stay valid.
 function _reset() {
   waitingQueue.length = 0;
+  for (const record of activeGames.values()) {
+    clearTimeout(record.turnTimer);
+  }
   activeGames.clear();
   socketRooms.clear();
 }
@@ -112,6 +148,8 @@ module.exports = {
   removeFromQueue,
   handleDisconnect,
   endGame,
+  startTurnTimer,
+  TURN_TIME_MS,
   activeGames,
   socketRooms,
   _reset,

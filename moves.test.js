@@ -22,6 +22,19 @@ function startGame() {
   return { x: players.X, o: players.O, roomId, io: fakeIo() };
 }
 
+// Like startGame, but the game is created with the same fake io the test
+// inspects, so events from the turn timer are recorded too.
+function startGameWithIo() {
+  const io = fakeIo();
+  const a = fakeSocket('a');
+  const b = fakeSocket('b');
+  addToQueue(a, io);
+  addToQueue(b, io);
+  const roomId = socketRooms.get('a');
+  const { players } = activeGames.get(roomId);
+  return { x: players.X, o: players.O, roomId, io };
+}
+
 // Events of a given name sent to the room through io.
 function sentToRoom(io, event) {
   return io.sent.filter((s) => s.event === event);
@@ -137,6 +150,59 @@ test('a move after the game ended is rejected as not in a game', () => {
   [[x, 0], [o, 3], [x, 1], [o, 4], [x, 2]].forEach(([p, i]) => handleMove(p, i, io));
   handleMove(o, 8, io);
   assert.deepEqual(o.last('move-rejected'), { reason: 'Not in a game' });
+});
+
+// ---- Turn timer (uses Node's mock timers to skip ahead in time) ----
+
+test('a player who does not move in time forfeits', (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const { x, o, roomId, io } = startGameWithIo();
+
+  t.mock.timers.tick(matchmaking.TURN_TIME_MS);
+
+  const over = sentToRoom(io, 'game-over');
+  assert.equal(over.length, 1);
+  assert.equal(over[0].room, roomId);
+  assert.equal(over[0].data.winner, 'O'); // X was to move and ran out of time
+  assert.equal(over[0].data.timedOut, true);
+  assert.equal(over[0].data.winningLine, null);
+  assert.equal(activeGames.size, 0);
+  assert.equal(x.rooms.has(roomId) || o.rooms.has(roomId), false);
+});
+
+test('each valid move restarts the countdown for the next player', (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const { x, io } = startGameWithIo();
+
+  t.mock.timers.tick(matchmaking.TURN_TIME_MS - 1000);
+  handleMove(x, 0, io);                      // X moves just in time
+  t.mock.timers.tick(matchmaking.TURN_TIME_MS - 1000);
+  assert.equal(sentToRoom(io, 'game-over').length, 0); // O still has 1s
+
+  t.mock.timers.tick(1000);
+  const over = sentToRoom(io, 'game-over');
+  assert.equal(over.length, 1);
+  assert.equal(over[0].data.winner, 'X');    // O ran out of time
+});
+
+test('the timer stops when a game ends normally', (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const { x, o, io } = startGameWithIo();
+  [[x, 0], [o, 3], [x, 1], [o, 4], [x, 2]].forEach(([p, i]) => handleMove(p, i, io));
+
+  t.mock.timers.tick(matchmaking.TURN_TIME_MS * 2);
+  const over = sentToRoom(io, 'game-over');
+  assert.equal(over.length, 1);              // only the real win
+  assert.equal(over[0].data.timedOut, false);
+});
+
+test('the timer stops when a player disconnects', (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const { x, io } = startGameWithIo();
+  matchmaking.handleDisconnect(x, io);
+
+  t.mock.timers.tick(matchmaking.TURN_TIME_MS * 2);
+  assert.equal(sentToRoom(io, 'game-over').length, 0);
 });
 
 test('players can queue again after a game ends', () => {

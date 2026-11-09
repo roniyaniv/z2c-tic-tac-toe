@@ -7,6 +7,28 @@
    - Status: data-turn="X"/"O" while a game is on; class "my-turn" on your turn
    - Find Game button: class "searching" (and disabled) while looking for a game */
 
+/* ---- Font ----
+   Fredoka, served by server.js from the @fontsource/fredoka package
+   (no request to Google). Latin subset only; other scripts fall back to the
+   system font. font-display: swap shows text immediately while loading. */
+@font-face {
+  font-family: 'Fredoka';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/fredoka-latin-400-normal.woff2') format('woff2'),
+       url('/fonts/fredoka-latin-400-normal.woff') format('woff');
+}
+
+@font-face {
+  font-family: 'Fredoka';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('/fonts/fredoka-latin-600-normal.woff2') format('woff2'),
+       url('/fonts/fredoka-latin-600-normal.woff') format('woff');
+}
+
 /* ---- Colors and sizes (change the theme here) ---- */
 :root {
   --bg: #fdf6ec;           /* warm cream page background */

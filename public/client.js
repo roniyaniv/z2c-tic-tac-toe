@@ -182,7 +182,7 @@ socket.on('move-rejected', ({ reason }) => {
   }, 1500);
 });
 
-socket.on('game-over', ({ winner, winningLine, isDraw, board }) => {
+socket.on('game-over', ({ winner, winningLine, isDraw, board, timedOut }) => {
   renderBoard(board);
   if (winningLine) {
     boardEl.dataset.winner = winner; // style.css tints the line in this color
@@ -191,7 +191,12 @@ socket.on('game-over', ({ winner, winningLine, isDraw, board }) => {
     }
   }
   let message;
-  if (isDraw) {
+  if (timedOut) {
+    // Forfeit: the player to move didn't move within the server's time limit.
+    message = winner === state.mySymbol
+      ? 'Opponent ran out of time. You win'
+      : 'You ran out of time';
+  } else if (isDraw) {
     message = "It's a draw";
   } else if (winner === state.mySymbol) {
     message = 'You win';
@@ -215,6 +220,12 @@ socket.on('disconnect', () => {
     // Player hadn't started searching yet; Find Game is still the way in.
     setStatus('Connection lost. Reconnecting...');
   }
+});
+
+// The server refused the connection (e.g. too many connections from this
+// network). Socket.io keeps retrying in the background.
+socket.on('connect_error', (err) => {
+  setStatus(`Unable to connect: ${err.message}`);
 });
 
 socket.on('connect', () => {
