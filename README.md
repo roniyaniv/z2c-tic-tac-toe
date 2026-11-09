@@ -115,3 +115,7 @@ Browser (client.js)  <── WebSocket (Socket.io) ──>  server.js
 | `.github/`            | CI workflow (tests + audit) and Dependabot config  |
 
 Each source file has inline comments with further detail.
+
+## License
+
+MIT, see [LICENSE](LICENSE). The Fredoka font is licensed separately under the SIL Open Font License.
